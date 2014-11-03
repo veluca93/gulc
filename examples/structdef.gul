@@ -1,0 +1,6 @@
+struct graph:
+	int N
+	int M
+	int[10] test
+	int[] a
+	int[] b
