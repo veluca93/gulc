@@ -1,0 +1,5 @@
+extern int solve(graph g)
+
+int main():
+	graph g = readGraph()
+	writeInt(solve(g))
