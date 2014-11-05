@@ -1,6 +1,10 @@
 struct graph:
 	int N
 	int M
-	int[10] test
-	int[] a
-	int[] b
+	int[M] a
+	int[M] b
+
+struct test:
+	graph g
+	int A
+	long B

@@ -8,7 +8,12 @@ def main():
     if len(sys.argv) < 2:
         print("Usage: %s sourcefile" % sys.argv[0], file=sys.stderr)
         exit(1)
-    AST = parse(open(sys.argv[1], 'rb'))
+    try:
+        AST = parse(open(sys.argv[1], 'rb'))
+    except SyntaxError:
+        print("\033[01;31mError:\033[0m", end=" ", file=sys.stderr)
+        print(sys.exc_info()[1], file=sys.stderr)
+        exit(2)
 
 if __name__ == "__main__":
     main()

@@ -100,6 +100,9 @@ def parse_struct():
     advance(tokenize.INDENT)
     extra_names = set()
     while tok.type != tokenize.DEDENT:
+        if tok.type == tokenize.NL:
+            nt()
+            continue
         type = parse_type()
         name = tok.string
         expect(tokenize.NAME)

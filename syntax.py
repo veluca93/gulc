@@ -74,8 +74,11 @@ class ArrayType(Type):
         self.name = self.baseType.name + "[]"
 
 class StructType(Type):
-    fieldNames = []
-    fieldTypes = []
+    def __init__(self, name):
+        self.name = name
+        self.fieldNames = []
+        self.fieldTypes = []
+
     def add(self, type, name):
         assert isinstance(type, (BaseType, ArrayType, StructType))
         self.fieldNames.append(name)
