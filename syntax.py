@@ -5,10 +5,14 @@ class SyntaxElement:
         raise NotImplementedError("Please override this method")
     def __repr__(self):
         attrs = [a for a in dir(self) if not a.startswith('__') and not callable(getattr(self, a))]
-        r = "%s {" % self.__class__.__name__
+        r = "%s\n" % self.__class__.__name__
         for a in attrs:
-            r += "%s: %s, " % (a, getattr(self, a))
-        r = r[:-2] + "}"
+            if isinstance(getattr(self, a), list):
+                rpr = "\n\t- " + "\n\t- ".join("\n\t\t".join(str(e).split("\n")) for e in getattr(self, a))
+            else:
+                rpr = str(getattr(self, a))
+            r += "\t%s: %s\n" % (a, "\n\t".join(rpr.split("\n")))
+        r = r[:-1].replace("\t", "  ")
         return r
 
 class Keyword(SyntaxElement):
