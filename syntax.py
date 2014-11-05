@@ -3,6 +3,18 @@
 class SyntaxElement:
     def convert(self):
         raise NotImplementedError("Please override this method")
+    def __repr__(self):
+        attrs = [a for a in dir(self) if not a.startswith('__') and not callable(getattr(self, a))]
+        r = "%s {" % self.__class__.__name__
+        for a in attrs:
+            r += "%s: %s, " % (a, getattr(self, a))
+        r = r[:-2] + "}"
+        return r
+
+class Keyword(SyntaxElement):
+    name = None
+    def __init__(self, name):
+        self.name = name
 
 class Type(SyntaxElement):
     name = None
@@ -59,7 +71,7 @@ class ArrayType(Type):
         assert isinstance(size, Valued) or size is None
         self.baseType = base
         self.size = size
-        self.name = self.baseType + "[]"
+        self.name = self.baseType.name + "[]"
 
 class StructType(Type):
     fieldNames = []
@@ -67,5 +79,5 @@ class StructType(Type):
     def add(self, type, name):
         assert isinstance(type, (BaseType, ArrayType, StructType))
         self.fieldNames.append(name)
-        self.fieldType.append(type)
+        self.fieldTypes.append(type)
 
