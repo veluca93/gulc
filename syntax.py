@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 class SyntaxElement:
-    def convert(self):
-        raise NotImplementedError("Please override this method")
     def __repr__(self):
         attrs = [a for a in dir(self) if not a.startswith('__') and not callable(getattr(self, a))]
         r = "%s\n" % self.__class__.__name__
@@ -16,12 +14,10 @@ class SyntaxElement:
         return r
 
 class Keyword(SyntaxElement):
-    name = None
     def __init__(self, name):
         self.name = name
 
 class Type(SyntaxElement):
-    name = None
     def __init__(self, name):
         self.name = name
 
@@ -31,48 +27,115 @@ class BaseType(Type):
 class FooType(Type):
     pass
 
-class Valued(SyntaxElement):
+class Statement(SyntaxElement):
     pass
 
-class Variable(Valued):
-    type = None
-    name = None
+class Expression(Statement):
+    pass
+
+class Variable(Expression):
     def __init__(self, type, name):
-        assert isinstance(type, Type)
+        assert isinstance(type, Type) or type is None
         self.type = type
         self.name = name
 
-class Value(Valued):
-    type = None
-    value = None
+class Value(Expression):
     def __init__(self, type, value):
         assert isinstance(type, Type)
         self.type = type
         self.value = value
 
-class Operator(SyntaxElement):
-    name = None
-    def __init__(self, name):
+class UnaryOperator(Expression):
+    def __init__(self, name, arg):
+        assert isinstance(arg, Operator)
         self.name = name
+        self.arg = arg
 
-class Expression(Valued):
-    left = None
-    right = None
-    op = None
-    def __init__(self, left, op, right):
-        assert (isinstance(left, Valued) and isinstance(right, Valued) and isinstance(op, Operator)) or \
-               (left is None and isinstance(op, Operator) and isinstance(right, Valued)) or \
-               (left is None and op is None and isinstance(right, Valued))
+class BinaryOperator(Expression):
+    def __init__(self, name, left, right):
+        assert isinstance(left, Operator) and isinstance(right, Operator)
+        self.name = name
         self.left = left
-        self.op = op
         self.right = right
 
+class Definition(Statement):
+    def __init__(self, var, value):
+        assert isinstance(var, Variable)
+        assert isinstance(value, Value)
+        self.var = var
+        self.value = value
+
+class ForStatement(Statement):
+    def __init__(self, var, array, block):
+        assert isinstance(var, Variable)
+        assert isinstance(array, Expression)
+        assert isinstance(block, Block)
+        self.var = var
+        self.array = array
+        self.block = block
+
+class IfStatement(Statement):
+    def __init__(self, condition, block, other=None):
+        assert isinstance(condition, Expression)
+        assert isinstance(block, Block)
+        assert isinstance(other, Block) or other is None
+        self.condition = condition
+        self.block = block
+        self.other = other
+
+class WhileStatement(Statement):
+    def __init__(self, condition, block):
+        assert isinstance(condition, Expression)
+        assert isinstance(block, Block)
+        self.condition = condition
+        self.block = block
+
+class Declaration(Statement):
+    def __init__(self, var, value=None):
+        assert isinstance(var, Variable)
+        assert isinstance(value, Expression) or value is None
+        self.var = var
+        self.value = value
+
+class Block(SyntaxElement):
+    def __init__(self):
+        self.statements = []
+    def add(self, statement):
+        assert isinstance(statement, Statement)
+        self.statements.append(statement)
+
+class FunctionDef(SyntaxElement):
+    def __init__(self, rettype, name):
+        assert isinstance(rettype, Type)
+        self.name = name
+        self.rettype = rettype
+        self.params = []
+
+    def addparam(self, var):
+        assert isinstance(var, Variable)
+        self.params.append(var)
+
+class Function(SyntaxElement):
+    def __init__(self, fd, body):
+        assert isinstance(fd, FunctionDef)
+        assert isinstance(body, Block)
+        self.fd = fd
+        self.body = body
+
+class FunctionCall(Expression):
+    def __init__(self, fn):
+        assert isinstance(fn, FunctionDef)
+        self.fn = fn
+        self.paramValues = []
+
+    def addparam(self, value):
+        assert isinstance(value, Expression)
+        self.paramValues.append(value)
+
 class ArrayType(Type):
-    baseType = FooType("void")
-    size = None
     def __init__(self, base, size):
         assert isinstance(base, BaseType)
-        assert isinstance(size, Valued) or size is None
+        assert isinstance(size, Expression) or size is None
         self.baseType = base
         self.size = size
         self.name = self.baseType.name + "[]"
