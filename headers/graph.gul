@@ -1,0 +1,8 @@
+struct graph:
+    int N
+    int M
+    int[M] a
+    int[M] b
+
+
+graph readGraph()

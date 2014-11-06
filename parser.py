@@ -3,10 +3,11 @@
 from syntax import *
 import tokenize
 import token
+import glob
 
 class AST:
-    encoding = None
-    rootnodes = []
+    def __init__(self):
+        self.rootnodes = []
     def set_encoding(self, encoding):
         self.encoding = encoding
     def add_node(self, node):
@@ -19,15 +20,24 @@ class AST:
         return r
 
 symbols = dict()
+symbols['in'] = Keyword('in')
+symbols['if'] = Keyword('if')
+symbols['for'] = Keyword('for')
+symbols['else'] = Keyword('else')
+symbols['while'] = Keyword('while')
+symbols['struct'] = Keyword('struct')
+symbols['void'] = FooType('void')
+symbols['int'] = BaseType('int')
+symbols['long'] = BaseType('long')
 token_iter = None
 tok = None
 DEBUG = False
 
 def debug(fn):
     def dfn(*args, **kwargs):
-        print("Start %s" % fn.__name__)
+        print("Start %s: %s" % (fn.__name__, args))
         ret = fn(*args, **kwargs)
-        print("End %s" % fn.__name__)
+        print("End %s: %s" % (fn.__name__, ret))
         return ret
     return dfn if DEBUG else fn
 
@@ -37,6 +47,20 @@ def nt():
     if DEBUG:
         print(tok)
     return tok.type != tokenize.ENDMARKER
+
+@debug
+def get_symbol(string = None):
+    if string is None:
+        string = tok.string
+    if string not in symbols:
+        raise NameError("Unknown name %s" % tok.string + lineerr())
+    return symbols[tok.string]
+
+@debug
+def add_symbol(var):
+    if var.name in symbols:
+        raise NameError("Name %s already used" % var.name + lineerr())
+    symbols[var.name] = var
 
 def lineerr():
     nspaces = 0
@@ -48,7 +72,11 @@ def lineerr():
     return " on line %d position %d\n%s%s^" % (tok.start[0], tok.start[1], tok.line, " " * nspaces)
 
 def expect(val):
-    if tok.type != val and tok.exact_type != val:
+    if isinstance(val, Keyword):
+        expect(tokenize.NAME)
+        if tok.string != val.name:
+            raise SyntaxError("Expected %s, got %s" % (val.name, tok.string) + lineerr())
+    elif tok.type != val and tok.exact_type != val:
         raise SyntaxError("Expected %s, got %s" % (token.tok_name[val], token.tok_name[tok.exact_type]) + lineerr())
 
 def advance(val):
@@ -59,9 +87,18 @@ def advance(val):
 def parse_expr():
     #TODO: implement this
     if tok.type == tokenize.NAME:
-        if tok.string not in symbols or not isinstance(symbols[tok.string], Variable):
-            raise SyntaxError("Unknown variable %s" % tok.string + lineerr())
-        val = symbols[tok.string]
+        if isinstance(get_symbol(), Variable):
+            val = get_symbol()
+        elif isinstance(get_symbol(), FunctionDef):
+            val = FunctionCall(get_symbol())
+            nt()
+            advance(tokenize.LPAR)
+            while tok.exact_type != tokenize.RPAR:
+                val.addparam(parse_expr())
+                if tok.exact_type != tokenize.RPAR:
+                    advance(tokenize.COMMA)
+        else:
+            raise NameError("Symbol %s is not a variable or function" % tok.string + lineerr())
     elif tok.type == tokenize.NUMBER:
         val = Value(BaseType("int"), int(tok.string))
     else:
@@ -72,9 +109,7 @@ def parse_expr():
 @debug
 def parse_type():
     expect(tokenize.NAME)
-    if tok.string not in symbols:
-        raise SyntaxError("Unknown name %s" % tok.string + lineerr())
-    base_type = symbols[tok.string]
+    base_type = get_symbol()
     if not isinstance(base_type, Type):
         raise SyntaxError("%s does not represent a type" % tok.string + lineerr())
     nt()
@@ -95,6 +130,8 @@ def parse_struct():
     nt()
     struct = StructType(tok.string)
     advance(tokenize.NAME)
+    if struct.name in symbols:
+        raise NameError("Name %s already used" % struct.name + lineerr())
     advance(tokenize.COLON)
     advance(tokenize.NEWLINE)
     advance(tokenize.INDENT)
@@ -108,9 +145,7 @@ def parse_struct():
         expect(tokenize.NAME)
         extra_names.add(name)
         var = Variable(type, name)
-        if name in symbols:
-            raise SyntaxError("Name %s already used" % tok.string + lineerr())
-        symbols[name] = var
+        add_symbol(var)
         struct.add(type, name)
         nt()
         advance(tokenize.NEWLINE)
@@ -119,13 +154,101 @@ def parse_struct():
     symbols[struct.name] = struct
     return struct
 
-def parse(f):
-    ast = AST()
-    symbols['struct'] = Keyword('struct')
-    symbols['int'] = BaseType('int')
-    symbols['long'] = BaseType('long')
+@debug
+def parse_block():
+    extra_names = set()
+    block = Block()
+    advance(tokenize.INDENT)
+    while tok.type != tokenize.DEDENT:
+        if tok.type == tokenize.NL:
+            nt()
+        elif tok.type == tokenize.NAME and tok.string == "for":
+            nt()
+            var = Variable(None, tok.string)
+            advance(tokenize.NAME)
+            advance(Keyword("in"))
+            expr = parse_expr()
+            advance(tokenize.COLON)
+            advance(tokenize.NEWLINE)
+            add_symbol(var)
+            block = parse_block()
+            nt()
+            del symbols[var.name]
+            block.add(ForStatement(var, expr, block))
+        elif tok.type == tokenize.NAME and tok.string == "if":
+            nt()
+            expr = parse_expr()
+            advance(tokenize.COLON)
+            advance(tokenize.NEWLINE)
+            block = parse_block()
+            nt()
+            if tok.string == "else":
+                nt()
+                advance(tokenize.COLON)
+                advance(tokenize.NEWLINE)
+                other = parse_block()
+                nt()
+                block.add(IfStatement(expr, block, other))
+            else:
+                block.add(IfStatement(expr, block))
+        elif tok.type == tokenize.NAME and tok.string == "while":
+            nt()
+            expr = parse_expr()
+            advance(tokenize.COLON)
+            advance(tokenize.NEWLINE)
+            block = parse_block()
+            nt()
+            block.add(WhileStatement(expr, block))
+        elif tok.type == tokenize.NAME and isinstance(get_symbol(), Type):
+            type = parse_type()
+            var = Variable(type, tok.string)
+            advance(tokenize.NAME)
+            if var.name in symbols:
+                raise NameError("Name %s already used" % var.name + lineerr())
+            if tok.exact_type == tokenize.EQUAL:
+                nt()
+                val = parse_expr()
+                block.add(Declaration(var, val))
+            else:
+                block.add(Declaration(var))
+            extra_names.add(var.name)
+            symbols[var.name] = var
+            advance(tokenize.NEWLINE)
+        else:
+            block.add(parse_expr())
+            advance(tokenize.NEWLINE)
+    for n in extra_names:
+        del symbols[n]
+    return block
+
+@debug
+def parse_function():
+    type = parse_type()
+    fn = FunctionDef(type, tok.string)
+    advance(tokenize.NAME)
+    advance(tokenize.LPAR)
+    while tok.exact_type != tokenize.RPAR:
+        type = parse_type()
+        fn.addparam(Variable(type, tok.string))
+        advance(tokenize.NAME)
+        if tok.exact_type != tokenize.RPAR:
+            advance(tokenize.COMMA)
+    advance(tokenize.RPAR)
+    add_symbol(fn)
+    if tok.exact_type == tokenize.NEWLINE:
+        return fn
+    advance(tokenize.COLON)
+    advance(tokenize.NEWLINE)
+    for v in fn.params:
+        add_symbol(v)
+    block = parse_block()
+    for v in fn.params:
+        del symbols[v]
+    return Function(fn, block)
+
+def _parse(f, ast):
     global token_iter
-    token_iter = tokenize.tokenize(f.readline)
+    token_iter = tokenize.tokenize(open(f, "rb").readline)
     while nt():
         if tok.type == tokenize.ENCODING:
             ast.set_encoding(tok.string)
@@ -133,10 +256,20 @@ def parse(f):
             pass
         elif tok.type == tokenize.NAME and tok.string == "struct":
             ast.add_node(parse_struct())
-        elif tok.type == tokenize.NAME and isinstance(symbols[tok.string], Type):
-            # parse a function declaration
-            pass
+        elif tok.type == tokenize.NAME and isinstance(get_symbol(), Type):
+            ast.add_node(parse_function())
         else:
+            if tok.type == tokenize.NAME:
+                raise NameError("Unknown name %s" % tok.string + lineerr())
             raise SyntaxError("Unexpected %s" % token.tok_name[tok.exact_type] + lineerr())
-    print(ast)
     return ast
+
+def parse(f):
+    libast = AST()
+    for i in glob.glob("headers/*.gul"):
+        _parse(i, libast)
+    ast = AST()
+    _parse(f, ast)
+    print(libast)
+    print(ast)
+    return libast, ast

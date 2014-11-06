@@ -1,4 +1,4 @@
-extern int solve(graph g)
+int solve(graph g)
 
 int main():
 	graph g = readGraph()

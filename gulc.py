@@ -9,8 +9,8 @@ def main():
         print("Usage: %s sourcefile" % sys.argv[0], file=sys.stderr)
         exit(1)
     try:
-        AST = parse(open(sys.argv[1], 'rb'))
-    except SyntaxError:
+        AST = parse(sys.argv[1])
+    except (NameError, SyntaxError):
         print("\033[01;31mError:\033[0m", end=" ", file=sys.stderr)
         print(sys.exc_info()[1], file=sys.stderr)
         exit(2)
