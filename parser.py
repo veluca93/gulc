@@ -35,9 +35,9 @@ DEBUG = False
 
 def debug(fn):
     def dfn(*args, **kwargs):
-        print("Start %s: %s" % (fn.__name__, args))
+        print("Start %s" % (fn.__name__))
         ret = fn(*args, **kwargs)
-        print("End %s: %s" % (fn.__name__, ret))
+        print("End %s" % (fn.__name__))
         return ret
     return dfn if DEBUG else fn
 
@@ -84,26 +84,48 @@ def advance(val):
     nt()
 
 @debug
+def parse_name():
+    if isinstance(get_symbol(), FunctionDef):
+        val = FunctionCall(get_symbol())
+        nt()
+        advance(tokenize.LPAR)
+        while tok.exact_type != tokenize.RPAR:
+            val.addparam(parse_expr())
+            if tok.exact_type != tokenize.RPAR:
+                advance(tokenize.COMMA)
+        nt()
+    elif isinstance(get_symbol(), Variable):
+        val = get_symbol()
+        nt()
+        if tok.exact_type == tokenize.DOT:
+            if not isinstance(val.type, StructType):
+                raise NameError("Symbol %s is not a struct" % val.name + lineerr())
+            nt()
+            if tok.string not in val.type.fieldNames:
+                raise NameError("Struct %s has no field named %s" % (val.name, tok.string) + lineerr())
+            else:
+                val = BinaryOperator(".", val, val.type.fieldTypes[val.type.fieldNames.index(tok.string)])
+                nt()
+        elif tok.exact_type == tokenize.LSQB:
+            nt()
+            idx = parse_expr()
+            val = BinaryOperator("[]", val, idx)
+            advance(tokenize.RSQB)
+    else:
+        raise NameError("Symbol %s is not a variable or function" % tok.string + lineerr())
+    return val
+
+
+@debug
 def parse_expr():
     #TODO: implement this
     if tok.type == tokenize.NAME:
-        if isinstance(get_symbol(), Variable):
-            val = get_symbol()
-        elif isinstance(get_symbol(), FunctionDef):
-            val = FunctionCall(get_symbol())
-            nt()
-            advance(tokenize.LPAR)
-            while tok.exact_type != tokenize.RPAR:
-                val.addparam(parse_expr())
-                if tok.exact_type != tokenize.RPAR:
-                    advance(tokenize.COMMA)
-        else:
-            raise NameError("Symbol %s is not a variable or function" % tok.string + lineerr())
+        val = parse_name()
     elif tok.type == tokenize.NUMBER:
         val = Value(BaseType("int"), int(tok.string))
+        nt()
     else:
         raise NotImplementedError("Expression parsing is not complete yet!")
-    nt()
     return val
 
 @debug
@@ -127,6 +149,7 @@ def parse_type():
 
 @debug
 def parse_struct():
+    # TODO: fix the case in which the struct field has the same name as an already-defined symbol
     nt()
     struct = StructType(tok.string)
     advance(tokenize.NAME)

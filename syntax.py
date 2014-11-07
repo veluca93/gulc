@@ -47,13 +47,13 @@ class Value(Expression):
 
 class UnaryOperator(Expression):
     def __init__(self, name, arg):
-        assert isinstance(arg, Operator)
+        assert isinstance(arg, Expression)
         self.name = name
         self.arg = arg
 
 class BinaryOperator(Expression):
     def __init__(self, name, left, right):
-        assert isinstance(left, Operator) and isinstance(right, Operator)
+        assert isinstance(left, Expression) and isinstance(right, Expression)
         self.name = name
         self.left = left
         self.right = right
