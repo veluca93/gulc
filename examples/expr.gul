@@ -1,0 +1,7 @@
+int main():
+    int a = 5
+    a = 2*3 + 5
+    a = a+a+a+a
+    a = a = a
+    a = a*2<<3
+    a = a<<3*2

@@ -29,6 +29,39 @@ symbols['struct'] = Keyword('struct')
 symbols['void'] = FooType('void')
 symbols['int'] = BaseType('int')
 symbols['long'] = BaseType('long')
+symbols['float'] = BaseType('float')
+left_binding_power = {
+    "unary": 1000,
+    "*": 900,
+    "/": 900,
+    "%": 900,
+    "+": 800,
+    "-": 800,
+    ">>": 700,
+    "<<": 700,
+    "<": 610,
+    "<=": 610,
+    ">": 610,
+    ">=": 610,
+    "==": 600,
+    "!=": 600,
+    "&": 510,
+    "^": 505,
+    "|": 500,
+    "and": 410,
+    "or": 400,
+    "=": 300,
+    "+=": 300,
+    "-=": 300,
+    "*=": 300,
+    "/=": 300,
+    "%=": 300,
+    "&=": 300,
+    "^=": 300,
+    "|=": 300,
+    "<<=": 300,
+    ">>=": 300
+}
 token_iter = None
 tok = None
 DEBUG = False
@@ -117,15 +150,41 @@ def parse_name():
 
 
 @debug
-def parse_expr():
-    #TODO: implement this
-    if tok.type == tokenize.NAME:
-        val = parse_name()
-    elif tok.type == tokenize.NUMBER:
-        val = Value(BaseType("int"), int(tok.string))
-        nt()
-    else:
-        raise NotImplementedError("Expression parsing is not complete yet!")
+def parse_expr(right_binding_power=0):
+    val = None
+    nbp = right_binding_power + 1
+    while nbp >= right_binding_power:
+        #TODO: string, array and struct literals
+        if val is None and tok.exact_type in [token.PLUS, token.MINUS, token.TILDE] or tok.type == token.NAME and tok.string == "not":
+            name = tok.string
+            nt()
+            val = UnaryOperator(name, parse_expr(left_binding_power["unary"]))
+        elif tok.exact_type == token.LPAR:
+            val = parse_expr(0)
+            advance(token.RPAR)
+        elif tok.type == token.NUMBER:
+            try:
+                val = Value(symbols["int"], int(tok.string))
+            except:
+                val = Value(symbols["float"], float(tok.string))
+            nt()
+        elif tok.type == token.NAME:
+            val = parse_name()
+
+        if tok.exact_type not in [token.RSQB, token.RPAR, token.RBRACE] and (tok.type == token.OP or tok.string in ["and", "or"]):
+            try:
+                nbp = left_binding_power[tok.string]
+            except:
+                raise SyntaxError("Unexpected operator %s" % tok.string + lineerr())
+        else:
+            nbp = -1
+
+        if nbp >= right_binding_power:
+            name = tok.string
+            nt()
+            right = parse_expr(nbp)
+            val = BinaryOperator(name, val, right)
+
     return val
 
 @debug
