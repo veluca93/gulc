@@ -1,4 +1,4 @@
-struct graph:
+struct graph_:
 	int N
 	int M
 	int[M] a

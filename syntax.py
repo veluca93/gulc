@@ -33,9 +33,15 @@ class Statement(SyntaxElement):
 class Expression(Statement):
     pass
 
+class InferredType(Type):
+    def init(self, expr):
+        assert isinstance(expr, Expression)
+        self.name = None
+        self.expr = expr
+
 class Variable(Expression):
     def __init__(self, type, name):
-        assert isinstance(type, Type) or type is None
+        assert isinstance(type, Type)
         self.type = type
         self.name = name
 
@@ -134,11 +140,14 @@ class FunctionCall(Expression):
 
 class ArrayType(Type):
     def __init__(self, base, size):
-        assert isinstance(base, BaseType)
+        assert isinstance(base, BaseType) or base is None
         assert isinstance(size, Expression) or size is None
         self.baseType = base
         self.size = size
-        self.name = self.baseType.name + "[]"
+        if base is not None:
+            self.name = self.baseType.name + "[]"
+        else:
+            self.name = "???[]"
 
 class StructType(Type):
     def __init__(self, name):
@@ -147,7 +156,7 @@ class StructType(Type):
         self.fieldTypes = []
 
     def add(self, type, name):
-        assert isinstance(type, (BaseType, ArrayType, StructType))
+        assert isinstance(type, (BaseType, ArrayType, StructType, InferredType))
         self.fieldNames.append(name)
         self.fieldTypes.append(type)
 

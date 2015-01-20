@@ -27,6 +27,8 @@ symbols['else'] = Keyword('else')
 symbols['while'] = Keyword('while')
 symbols['struct'] = Keyword('struct')
 symbols['void'] = FooType('void')
+symbols['bool'] = BaseType('bool')
+symbols['char'] = BaseType('char')
 symbols['int'] = BaseType('int')
 symbols['long'] = BaseType('long')
 symbols['float'] = BaseType('float')
@@ -154,7 +156,6 @@ def parse_expr(right_binding_power=0):
     val = None
     nbp = right_binding_power + 1
     while nbp >= right_binding_power:
-        #TODO: string, array and struct literals
         if val is None and tok.exact_type in [token.PLUS, token.MINUS, token.TILDE] or tok.type == token.NAME and tok.string == "not":
             name = tok.string
             nt()
@@ -170,8 +171,36 @@ def parse_expr(right_binding_power=0):
             nt()
         elif tok.type == token.NAME:
             val = parse_name()
+        elif tok.type == token.STRING:
+            val = tok.string.strip("\"'")
+            val = Value(ArrayType(symbols["char"], Value(symbols["int"], len(val))), val)
+            nt()
+        elif tok.exact_type == tokenize.LSQB:
+            nt()
+            val = []
+            while tok.exact_type != tokenize.RSQB:
+                val.append(parse_expr(0))
+                if tok.exact_type == tokenize.COMMA:
+                    nt()
+            # ArrayType.base == None means that we will try to find it when we work with the array.
+            val = Value(ArrayType(None, None), val)
+            advance(tokenize.RSQB)
+        elif tok.exact_type == tokenize.LBRACE:
+            nt()
+            val = dict()
+            while tok.exact_type != tokenize.RBRACE:
+                expect(tokenize.NAME)
+                fname = tok.string
+                nt()
+                advance(tokenize.EQUAL)
+                val[fname] = parse_expr(0)
+                if tok.exact_type == tokenize.COMMA:
+                    nt()
+            # StructType.name == None means that we will try to find it when we work with the struct.
+            val = Value(StructType(None), val)
+            advance(tokenize.RBRACE)
 
-        if tok.exact_type not in [token.RSQB, token.RPAR, token.RBRACE] and (tok.type == token.OP or tok.string in ["and", "or"]):
+        if tok.exact_type not in [token.RSQB, token.RPAR, token.RBRACE, token.COMMA] and (tok.type == token.OP or tok.string in ["and", "or"]):
             try:
                 nbp = left_binding_power[tok.string]
             except:
@@ -246,12 +275,13 @@ def parse_block():
             nt()
         elif tok.type == tokenize.NAME and tok.string == "for":
             nt()
-            var = Variable(None, tok.string)
+            var = tok.string
             advance(tokenize.NAME)
             advance(Keyword("in"))
             expr = parse_expr()
             advance(tokenize.COLON)
             advance(tokenize.NEWLINE)
+            var = Variable(InferredType(BinaryOperator("[]", expr, 0)), var)
             add_symbol(var)
             block = parse_block()
             nt()
